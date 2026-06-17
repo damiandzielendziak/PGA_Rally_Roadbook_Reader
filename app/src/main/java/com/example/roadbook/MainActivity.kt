@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -37,14 +36,11 @@ import com.example.roadbook.navigation.AppNavigation
 class MainActivity : ComponentActivity() {
 
     private val viewModel: RoadbookViewModel by viewModels()
-    // Stan przewijania zostaje tutaj, bo MainActivity odbiera zdarzenia sprzętowe z klawiatury/kontrolera
     private var scrollSignal by mutableStateOf(Pair(ScrollDirection.NONE, 0L))
     private lateinit var controllerManager: ControllerManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Prawidłowa inicjalizacja Splash Screena
-        installSplashScreen()
-        super.onCreate(savedInstanceState)
+        super.onCreate(savedInstanceState) // BEZ installSplashScreen()
 
         // Ekran zawsze włączony
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -64,7 +60,6 @@ class MainActivity : ComponentActivity() {
             onActionHub = { executeControllerActionHub() }
         )
 
-        // Ładowanie trasy w tle
         lifecycleScope.launch(Dispatchers.IO) {
             viewModel.loadGpxData(this@MainActivity)
         }
@@ -72,11 +67,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
-
                     val context = LocalContext.current
                     val activity = context as? ComponentActivity
 
-                    // Reagowanie na zmiany orientacji ekranu z ViewModelu
                     LaunchedEffect(viewModel.isLandscapeOrientation.value) {
                         activity?.requestedOrientation = if (viewModel.isLandscapeOrientation.value) {
                             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -85,7 +78,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Bezpieczna obsługa uprawnień GPS (Android 12+)
                     val permissionLauncher = rememberLauncherForActivityResult<Array<String>, Map<String, Boolean>>(
                         contract = ActivityResultContracts.RequestMultiplePermissions()
                     ) { results: Map<String, Boolean> ->
@@ -101,11 +93,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Pierwsze akcje przy starcie UI
                     LaunchedEffect(Unit) {
                         viewModel.updateBatteryStatus(context)
                         viewModel.checkConnectedControllers()
-                        // Wywołanie pytania o OBA uprawnienia
                         permissionLauncher.launch(
                             arrayOf(
                                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -114,7 +104,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Skalowanie interfejsu (Zoom UI)
                     val currentDensity = LocalDensity.current
                     val scaleFactor = viewModel.uiScale.value * 0.85f
 
@@ -124,7 +113,6 @@ class MainActivity : ComponentActivity() {
                             fontScale = 1.0f * scaleFactor
                         )
                     ) {
-                        // Nawigacja
                         AppNavigation(
                             viewModel = viewModel,
                             scrollSignal = scrollSignal,
@@ -142,18 +130,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Przechwytywanie fizycznych przycisków
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return window.superDispatchKeyEvent(event)
-
-        if (controllerManager.handleKeyEvent(event)) {
-            return true
-        }
+        if (controllerManager.handleKeyEvent(event)) return true
         return window.superDispatchKeyEvent(event)
     }
 
-    // Logika podłączona do przycisku akcji kontrolera
     fun executeControllerActionHub() {
         val context = this
         when {
