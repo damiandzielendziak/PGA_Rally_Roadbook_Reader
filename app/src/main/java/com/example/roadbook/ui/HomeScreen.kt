@@ -1,5 +1,7 @@
 package com.example.roadbook.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -27,17 +30,23 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     viewModel: RoadbookViewModel,
     onNavigateToRoadbook: () -> Unit,
-    onNavigateToSettings: () -> Unit, // Teraz to wywołuje ekran ustawień
+    onNavigateToSettings: () -> Unit,
     onExit: () -> Unit
 ) {
     val gravelBg = Color(0xFFF4F3F2)
     val deepGraphite = Color(0xFF2B2A29)
     val rallyRed = Color(0xFFD73224)
 
+    // Logika animacji pulsującego tła
     var scalePulse by remember { mutableStateOf(0.96f) }
     var opacityPulse by remember { mutableStateOf(0.8f) }
 
+    // Logika animacji pojawiania się ekranu (fade-in)
+    var isVisible by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
+        isVisible = true // Wyzwolenie animacji pojawiania się
+
         val steps = 150
         var currentStep = 0
         var goingUp = true
@@ -57,10 +66,18 @@ fun HomeScreen(
         }
     }
 
+    val alpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 1000), // 1 sekunda płynnego pojawiania się
+        label = "fade_in_menu"
+    )
+
+    // Cały ekran z nałożonym modyfikatorem alpha
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(gravelBg)
+            .alpha(alpha) // Animacja przejścia
             .padding(vertical = 60.dp, horizontal = 40.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally

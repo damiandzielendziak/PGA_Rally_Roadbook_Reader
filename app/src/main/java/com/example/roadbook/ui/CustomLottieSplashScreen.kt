@@ -3,6 +3,7 @@ package com.example.roadbook.ui
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import com.airbnb.lottie.compose.*
 import com.example.roadbook.R
 
@@ -27,7 +28,8 @@ fun CustomLottieSplashScreen(onAnimationComplete: () -> Unit) {
     LottieAnimation(
         composition = composition,
         progress = { progress },
-        modifier = Modifier.fillMaxSize() // Dodane, aby animacja wypełniła ekran
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize()
     )
 
 }
