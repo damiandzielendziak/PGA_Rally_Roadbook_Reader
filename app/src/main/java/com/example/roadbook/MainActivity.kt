@@ -49,7 +49,8 @@ class MainActivity : ComponentActivity() {
         controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
-        viewModel.initializeSettings(this)
+        // TUTAJ ZMIANA: Wczytanie ustawień z pamięci telefonu na samym starcie aplikacji
+        viewModel.loadSettings(this)
 
         controllerManager = ControllerManager(
             viewModel = viewModel,

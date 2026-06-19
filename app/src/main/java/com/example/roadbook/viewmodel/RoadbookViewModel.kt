@@ -121,8 +121,27 @@ class RoadbookViewModel : ViewModel() {
         currentSpeed.value = 0f
     }
 
-    fun initializeSettings(context: Context) {}
-    fun saveSettings(context: Context) { showSettings.value = false }
+    fun loadSettings(context: Context) {
+        val sharedPreferences = context.getSharedPreferences("RoadbookSettings", Context.MODE_PRIVATE)
+        uiScale.value = sharedPreferences.getFloat("UI_SCALE", 1.0f)
+        isLandscapeOrientation.value = sharedPreferences.getBoolean("IS_LANDSCAPE", false)
+        tapsEnabled.value = sharedPreferences.getBoolean("TAPS_ENABLED", true)
+        isAutoScrollEnabled.value = sharedPreferences.getBoolean("AUTO_SCROLL", false)
+        isSimulationMode.value = sharedPreferences.getBoolean("SIMULATION_MODE", false)
+    }
+
+    fun saveSettings(context: Context) {
+        val sharedPreferences = context.getSharedPreferences("RoadbookSettings", Context.MODE_PRIVATE)
+        with(sharedPreferences.edit()) {
+            putFloat("UI_SCALE", uiScale.value)
+            putBoolean("IS_LANDSCAPE", isLandscapeOrientation.value)
+            putBoolean("TAPS_ENABLED", tapsEnabled.value)
+            putBoolean("AUTO_SCROLL", isAutoScrollEnabled.value)
+            putBoolean("SIMULATION_MODE", isSimulationMode.value)
+            apply()
+        }
+        showSettings.value = false
+    }
 
     fun loadGpxData(context: Context) {
         viewModelScope.launch {

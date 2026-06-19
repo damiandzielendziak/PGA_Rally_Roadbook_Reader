@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +23,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.roadbook.MainActivity
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -36,10 +34,6 @@ import com.example.roadbook.model.ScrollDirection
 import com.example.roadbook.model.RallyWaypoint
 import com.example.roadbook.model.calculateAzimuthBetweenPoints
 import com.example.roadbook.viewmodel.RoadbookViewModel
-import com.example.roadbook.ui.TelemetryBar
-import com.example.roadbook.ui.InstrumentPanel
-import com.example.roadbook.ui.RoadbookRow
-import com.example.roadbook.ui.FloatingNavigationMenu
 import com.example.roadbook.ui.theme.Montserrat
 import com.example.roadbook.ui.theme.RallyBold
 
@@ -513,125 +507,212 @@ fun MainApplicationScreen(
     }
 
     if (viewModel.showSettings.value) {
-        AlertDialog(
-            onDismissRequest = { viewModel.showSettings.value = false },
-            title = { Text(text = "Roadbook Settings", fontFamily = Montserrat, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+        RallySettingsDialog(
+            viewModel = viewModel,
+            onDismissRequest = { viewModel.showSettings.value = false }
+        )
+    }
+}
+
+@Composable
+fun RallySettingsDialog(
+    viewModel: RoadbookViewModel,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val rallyRed = Color(0xFFD73224) // Kolor AccentRed z SettingsScreen
+    val darkGray = Color(0xFF2B2A29) // Kolor TextPrimary z SettingsScreen
+    val lightBackground = Color(0xFFF4F3F2) // Kolor BgColor z SettingsScreen
+    val surfaceWhite = Color(0xFFFEFEFE)
+
+    Dialog(onDismissRequest = onDismissRequest) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = lightBackground,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "ROADBOOK ",
+                        fontFamily = Montserrat,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = darkGray
+                    )
+                    Text(
+                        text = "SETTINGS",
+                        fontFamily = Montserrat,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = rallyRed
+                    )
+                }
+
+                HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(text = "Layout Scale", fontFamily = Montserrat, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
+                    Text("Layout Scale", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = darkGray,
+                            modifier = Modifier.size(32.dp),
+                            onClick = {
+                                val currentPct = (viewModel.uiScale.value * 100).roundToInt()
+                                val newPct = (currentPct - 10).coerceAtLeast(80)
+                                viewModel.uiScale.value = newPct / 100f
+                            }
                         ) {
-                            Button(
-                                onClick = {
-                                    val currentPct = (viewModel.uiScale.value * 100).roundToInt()
-                                    val newPct = (currentPct - 5).coerceAtLeast(50)
-                                    viewModel.uiScale.value = newPct / 100f
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                                modifier = Modifier.size(36.dp),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(text = "-", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White, textAlign = TextAlign.Center)
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("-", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
                             }
+                        }
 
-                            Text(
-                                text = "${(viewModel.uiScale.value * 100).roundToInt()}%",
-                                fontFamily = Montserrat,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 26.sp,
-                                color = Color.Black,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.width(90.dp)
-                            )
+                        Text(
+                            text = "${(viewModel.uiScale.value * 100).roundToInt()}%",
+                            fontFamily = Montserrat,
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            fontWeight = FontWeight.Bold,
+                            color = darkGray
+                        )
 
-                            Button(
-                                onClick = {
-                                    val currentPct = (viewModel.uiScale.value * 100).roundToInt()
-                                    val newPct = (currentPct + 5).coerceAtMost(150)
-                                    viewModel.uiScale.value = newPct / 100f
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                                modifier = Modifier.size(36.dp),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(text = "+", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White, textAlign = TextAlign.Center)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = darkGray,
+                            modifier = Modifier.size(32.dp),
+                            onClick = {
+                                val currentPct = (viewModel.uiScale.value * 100).roundToInt()
+                                val newPct = (currentPct + 10).coerceAtMost(120)
+                                viewModel.uiScale.value = newPct / 100f
+                            }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("+", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
+                }
 
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(text = "Orientacja pozioma", fontFamily = Montserrat, fontWeight = FontWeight.SemiBold)
-                            Text(text = "Zablokuj interfejs w poziomie", fontFamily = Montserrat, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        }
-                        Switch(
-                            checked = viewModel.isLandscapeOrientation.value,
-                            onCheckedChange = { isChecked: Boolean -> viewModel.isLandscapeOrientation.value = isChecked }
-                        )
+                HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
+
+                val switchColors = SwitchDefaults.colors(
+                    checkedThumbColor = surfaceWhite,
+                    checkedTrackColor = rallyRed,
+                    uncheckedThumbColor = darkGray,
+                    uncheckedTrackColor = Color(0xFFF1F0EF),
+                    checkedBorderColor = rallyRed,
+                    uncheckedBorderColor = darkGray.copy(alpha = 0.12f)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Orientacja pozioma", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                        Text("Zablokuj interfejs w poziomie", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
                     }
+                    Switch(
+                        checked = viewModel.isLandscapeOrientation.value,
+                        onCheckedChange = { viewModel.isLandscapeOrientation.value = it },
+                        colors = switchColors
+                    )
+                }
 
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "Tap to Scroll", fontFamily = Montserrat, fontWeight = FontWeight.SemiBold)
-                        Switch(
-                            checked = viewModel.tapsEnabled.value,
-                            onCheckedChange = { isChecked: Boolean -> viewModel.tapsEnabled.value = isChecked }
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Tap to Scroll", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                    Switch(
+                        checked = viewModel.tapsEnabled.value,
+                        onCheckedChange = { viewModel.tapsEnabled.value = it },
+                        colors = switchColors
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Auto-Scroll Roadbook", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                    Switch(
+                        checked = viewModel.isAutoScrollEnabled.value,
+                        onCheckedChange = { viewModel.isAutoScrollEnabled.value = it },
+                        colors = switchColors
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("GPS Simulation", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                        Text("Drives route at 72 km/h", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
                     }
+                    Switch(
+                        checked = viewModel.isSimulationMode.value,
+                        onCheckedChange = { viewModel.toggleSimulation(it) },
+                        colors = switchColors
+                    )
+                }
 
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "Auto-Scroll Roadbook", fontFamily = Montserrat, fontWeight = FontWeight.SemiBold)
-                        Switch(
-                            checked = viewModel.isAutoScrollEnabled.value,
-                            onCheckedChange = { isChecked: Boolean -> viewModel.isAutoScrollEnabled.value = isChecked }
-                        )
-                    }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // === DOKŁADNIE PRZENIESIONY STYL BUTTONU Z SETTINGSSCREEN ===
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    // WARSTWA 1: Czerwone "podkreślenie"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .offset(y = 4.dp)
+                            .background(rallyRed, RoundedCornerShape(50))
+                    )
+
+                    // WARSTWA 2: Główny, czarny przycisk
+                    Button(
+                        onClick = {
+                            viewModel.saveSettings(context)
+                            onDismissRequest()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(containerColor = darkGray)
                     ) {
-                        Column {
-                            Text(text = "GPS Simulation Mode", fontFamily = Montserrat, fontWeight = FontWeight.SemiBold)
-                            Text(text = "Drives route at 72 km/h", fontFamily = Montserrat, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        }
-                        Switch(
-                            checked = viewModel.isSimulationMode.value,
-                            onCheckedChange = { isChecked: Boolean -> viewModel.toggleSimulation(isChecked) }
+                        Text(
+                            text = "SAVE SETTINGS",
+                            fontFamily = Montserrat,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = surfaceWhite,
+                            letterSpacing = 2.sp
                         )
                     }
                 }
-            },
-            confirmButton = {
-                Button(onClick = { viewModel.saveSettings(context) }) { Text("Save", fontFamily = Montserrat, fontWeight = FontWeight.Bold) }
             }
-        )
+        }
     }
 }

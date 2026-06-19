@@ -67,7 +67,7 @@ fun AppNavigation(
         ) {
             SettingsScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onDismissRequest = { navController.popBackStack() }
             )
         }
 
