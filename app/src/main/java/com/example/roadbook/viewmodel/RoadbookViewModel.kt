@@ -19,6 +19,9 @@ import com.example.roadbook.model.parseGpxFile
 import com.example.roadbook.model.GpsSimulator
 import com.example.roadbook.domain.RallyNavigationEngine
 import com.example.roadbook.infrastructure.GpsTracker
+import com.example.roadbook.model.RallyStage
+import com.example.roadbook.model.StageCategory
+import com.example.roadbook.model.StageStatus
 
 class RoadbookViewModel : ViewModel() {
 
@@ -47,6 +50,12 @@ class RoadbookViewModel : ViewModel() {
     var isLandscapeOrientation = mutableStateOf(false)
     var isPreviewMode = mutableStateOf(false)
 
+    // --- STAGE SELECTION STATE ---
+    var availableStages = mutableStateOf<List<RallyStage>>(emptyList())
+    var isSyncingFromServer = mutableStateOf(false)
+    var syncStatusMessage = mutableStateOf("Ostatnia synchronizacja: Nie sprawdzano")
+    var selectedStageId = mutableStateOf<String?>(null)
+
     // Detekcja sprzętu BLE
     var bluetoothDeviceName = mutableStateOf("Nie wykryto")
     var controllerProfile = mutableStateOf("Użyj dowolnego klawisza aby wykryć")
@@ -67,13 +76,55 @@ class RoadbookViewModel : ViewModel() {
     private var lastKnownLocation: Location? = null
 
     init {
+        showStartupDialog.value = true
+        isNavigationStarted.value = false
+    }
+
+    // --- STAGE SELECTION LOGIC ---
+    fun checkForStageUpdates(context: Context) {
+        if (isSyncingFromServer.value) return
+
         viewModelScope.launch {
-            showStartupDialog.value = true
-            delay(2000L)
-            showStartupDialog.value = false
+            isSyncingFromServer.value = true
+            syncStatusMessage.value = "Sprawdzanie aktualizacji z serwera..."
+            availableStages.value = emptyList() // Czyszczenie listy, aby wymusić stan ładowania i pokazać loader
+
+            delay(1500L) // Kontrolowane opóźnienie sieciowe (1.5 sekundy)
+
+            availableStages.value = listOf(
+                RallyStage("sys_01", "Puszcza Zielonka - SS01", 39.5, 43, StageCategory.SYSTEM, StageStatus.UP_TO_DATE, "v1.4"),
+                RallyStage("sys_02", "Biedrusko Poligon - SS02", 54.2, 68, StageCategory.SYSTEM, StageStatus.UPDATE_AVAILABLE, "v2.1"),
+                RallyStage("sys_03", "Drawsko Pomorskie - OS3", 120.8, 142, StageCategory.SYSTEM, StageStatus.NEW, "v1.0"),
+                RallyStage("user_01", "Moja Trasa Treningowa", 15.4, 12, StageCategory.USER, StageStatus.LOCAL, "v1.0")
+            )
+
+            isSyncingFromServer.value = false
+            syncStatusMessage.value = "Zsynchronizowano pomyślnie"
         }
     }
 
+    fun downloadOrUpdateStage(stageId: String) {
+        availableStages.value = availableStages.value.map { stage ->
+            if (stage.id == stageId) {
+                stage.copy(status = StageStatus.UP_TO_DATE)
+            } else stage
+        }
+    }
+
+    fun importUserGpxFile(context: Context, fileName: String) {
+        val newStage = RallyStage(
+            id = "user_${System.currentTimeMillis()}",
+            title = fileName.removeSuffix(".gpx"),
+            distanceKm = 24.8,
+            waypointCount = 28,
+            category = StageCategory.USER,
+            status = StageStatus.LOCAL,
+            version = "v1.0"
+        )
+        availableStages.value = availableStages.value + newStage
+    }
+
+    // --- HARDWARE & SYSTEM STATUS ---
     fun checkConnectedControllers() {
         val deviceIds = InputDevice.getDeviceIds()
         var found = false
@@ -94,6 +145,7 @@ class RoadbookViewModel : ViewModel() {
         }
     }
 
+    // --- NAVIGATION FLOW CONTROL ---
     fun confirmStart() {
         showStartupDialog.value = false
         isPreviewMode.value = false
@@ -121,6 +173,7 @@ class RoadbookViewModel : ViewModel() {
         currentSpeed.value = 0f
     }
 
+    // --- SETTINGS MANAGEMENT ---
     fun loadSettings(context: Context) {
         val sharedPreferences = context.getSharedPreferences("RoadbookSettings", Context.MODE_PRIVATE)
         uiScale.value = sharedPreferences.getFloat("UI_SCALE", 1.0f)
@@ -143,6 +196,7 @@ class RoadbookViewModel : ViewModel() {
         showSettings.value = false
     }
 
+    // --- DATA LOADING ---
     fun loadGpxData(context: Context) {
         viewModelScope.launch {
             val parsedList = parseGpxFile(context)
@@ -155,6 +209,7 @@ class RoadbookViewModel : ViewModel() {
         }
     }
 
+    // --- GPS & LOCATION LOGIC ---
     private fun initGpsTracker(context: Context) {
         gpsTracker = GpsTracker(
             context = context,
@@ -218,7 +273,6 @@ class RoadbookViewModel : ViewModel() {
                     capHeading.value = ((azimuth + 360) % 360).toFloat()
                 }
 
-                // Przebieg bije nieprzerwanie od zera na dojazdówce i rośnie normalnie
                 totalDistanceMeters.value += distanceMoved
                 tripDistanceMeters.value += distanceMoved
             }
@@ -230,7 +284,6 @@ class RoadbookViewModel : ViewModel() {
             lastKnownLocation = location
         }
 
-        // --- MANUALE ZABEZPIECZENIE PRZEDSTARTOWE (REFEKCJA WORKFLOW ZAWODNIKA) ---
         val startWp = waypointList.value.getOrNull(0)
         if (validatedWaypointsCount.value == 0 && startWp != null) {
             activeWaypointIndex.value = 0
@@ -242,23 +295,16 @@ class RoadbookViewModel : ViewModel() {
             }
 
             val distanceToStart = location.distanceTo(targetLoc)
-
-            // Strzałka kierunkowa i odliczanie metrów (DTW) działają stabilnie w oparciu o realną pozycję
             dtwDistance.value = distanceToStart
             dtwBearing.value = (location.bearingTo(targetLoc) + 360f) % 360f
 
-            // Przejście w tryb OS następuje TYLKO gdy motocyklista stoi na linii startu (<= 50m)
-            // ORAZ manualnie wyzerował swój licznik ODO (wartość mniejsza niż 15 metrów od resetu)
             val validationRadius = 50f
             if (distanceToStart <= validationRadius && totalDistanceMeters.value < 15.0) {
                 validatedWaypointsCount.value = 1
             }
-
-            // Dopóki nie wyzerujesz ODO na linii startu, silnik rajdowy nie ma prawa modyfikować danych
             return
         }
 
-        // Pętla silnika rajdowego steruje nawigacją dopiero po zaliczeniu startu i Twoim manualnym resecie
         val result = navigationEngine.calculateNavigation(
             currentLat = location.latitude,
             currentLon = location.longitude,
@@ -289,6 +335,7 @@ class RoadbookViewModel : ViewModel() {
         lastKnownLocation = null
     }
 
+    // --- MANUAL CONTROLS ---
     fun startIncrementLoop() {
         if (adjustmentJob?.isActive == true) return
         adjustmentJob = viewModelScope.launch {

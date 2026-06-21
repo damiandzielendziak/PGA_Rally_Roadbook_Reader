@@ -65,7 +65,7 @@ fun MainApplicationScreen(
     var isOverlayVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentIndex, isGpsOrSim) {
-        if (isGpsOrSim) {
+        if (isGpsOrSim && !viewModel.showStartupDialog.value) {
             snapshotFlow { viewModel.totalDistanceMeters.value }
                 .collect { currentOdo ->
                     val activeWaypoint = viewModel.waypointList.value.getOrNull(currentIndex)
@@ -95,6 +95,7 @@ fun MainApplicationScreen(
     }
 
     LaunchedEffect(scrollSignal) {
+        if (viewModel.showStartupDialog.value) return@LaunchedEffect
         val (direction, _) = scrollSignal
         val totalItems = viewModel.waypointList.value.size
         if (totalItems > 0) {
@@ -115,15 +116,18 @@ fun MainApplicationScreen(
     }
 
     LaunchedEffect(viewModel.activeWaypointIndex.value) {
-        if (viewModel.isAutoScrollEnabled.value && !viewModel.isPreviewMode.value && viewModel.waypointList.value.isNotEmpty()) {
+        if (!viewModel.showStartupDialog.value && viewModel.isAutoScrollEnabled.value && !viewModel.isPreviewMode.value && viewModel.waypointList.value.isNotEmpty()) {
             listState.animateScrollToItem(viewModel.activeWaypointIndex.value)
             viewModel.tripDistanceMeters.value = 0.0
         }
     }
 
+    // === POPRAWKA LOGICZNA: Powrót do aktywnej kratki po zamknięciu menu następuje TYLKO przy włączonym Auto-Scrollu ===
     LaunchedEffect(viewModel.showStartupDialog.value) {
         if (!viewModel.showStartupDialog.value && !viewModel.isPreviewMode.value && viewModel.waypointList.value.isNotEmpty()) {
-            listState.animateScrollToItem(viewModel.activeWaypointIndex.value)
+            if (viewModel.isAutoScrollEnabled.value) {
+                listState.animateScrollToItem(viewModel.activeWaypointIndex.value)
+            }
         }
     }
 
@@ -220,26 +224,30 @@ fun MainApplicationScreen(
                                     .pointerInput(Unit) {
                                         detectTapGestures(
                                             onTap = { offset ->
-                                                val isTopHalf = offset.y < size.height / 2
-                                                onGenerateSignal(if (isTopHalf) ScrollDirection.UP else ScrollDirection.DOWN)
+                                                if (!viewModel.showStartupDialog.value) {
+                                                    val isTopHalf = offset.y < size.height / 2
+                                                    onGenerateSignal(if (isTopHalf) ScrollDirection.UP else ScrollDirection.DOWN)
+                                                }
                                             },
                                             onLongPress = { offset ->
-                                                val totalWidth = size.width
-                                                val isInTulipColumn = offset.x >= totalWidth * 0.30f && offset.x <= totalWidth * 0.65f
+                                                if (!viewModel.showStartupDialog.value) {
+                                                    val totalWidth = size.width
+                                                    val isInTulipColumn = offset.x >= totalWidth * 0.30f && offset.x <= totalWidth * 0.65f
 
-                                                if (isInTulipColumn) {
-                                                    val clickedItem = listState.layoutInfo.visibleItemsInfo.firstOrNull { itemInfo ->
-                                                        offset.y >= itemInfo.offset && offset.y <= (itemInfo.offset + itemInfo.size)
-                                                    }
-                                                    clickedItem?.let { itemInfo ->
-                                                        val index = itemInfo.index
-                                                        if (index in viewModel.waypointList.value.indices) {
-                                                            val waypoint = viewModel.waypointList.value[index]
-                                                            try {
-                                                                val geoUriString = "geo:${waypoint.latitude},${waypoint.longitude}?q=${waypoint.latitude},${waypoint.longitude}(Kratka_${index + 1})"
-                                                                val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUriString))
-                                                                context.startActivity(mapIntent)
-                                                            } catch (e: Exception) {}
+                                                    if (isInTulipColumn) {
+                                                        val clickedItem = listState.layoutInfo.visibleItemsInfo.firstOrNull { itemInfo ->
+                                                            offset.y >= itemInfo.offset && offset.y <= (itemInfo.offset + itemInfo.size)
+                                                        }
+                                                        clickedItem?.let { itemInfo ->
+                                                            val index = itemInfo.index
+                                                            if (index in viewModel.waypointList.value.indices) {
+                                                                val waypoint = viewModel.waypointList.value[index]
+                                                                try {
+                                                                    val geoUriString = "geo:${waypoint.latitude},${waypoint.longitude}?q=${waypoint.latitude},${waypoint.longitude}(Kratka_${index + 1})"
+                                                                    val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUriString))
+                                                                    context.startActivity(mapIntent)
+                                                                } catch (e: Exception) {}
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -448,7 +456,16 @@ fun MainApplicationScreen(
                             }
 
                             Button(
-                                onClick = onCancelNavigation,
+                                onClick = {
+                                    viewModel.isNavigationStarted.value = false
+                                    viewModel.showStartupDialog.value = true
+                                    viewModel.activeWaypointIndex.value = 0
+                                    viewModel.validatedWaypointsCount.value = 0
+                                    viewModel.totalDistanceMeters.value = 0.0
+                                    viewModel.tripDistanceMeters.value = 0.0
+                                    viewModel.stopLocationUpdates()
+                                    onCancelNavigation()
+                                },
                                 shape = RoundedCornerShape(50.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD73224).copy(alpha = 0.03f)),
                                 contentPadding = PaddingValues(vertical = 22.dp),
@@ -502,7 +519,7 @@ fun MainApplicationScreen(
             onSettingsClick = { viewModel.showSettings.value = true },
             onPauseClick = { context.executeControllerActionHub() },
             onRotationClick = onForceScreenRotation,
-            isPaused = !viewModel.isGpsActive.value
+            isPaused = viewModel.showStartupDialog.value && viewModel.isNavigationStarted.value
         )
     }
 
@@ -521,9 +538,9 @@ fun RallySettingsDialog(
 ) {
     val context = LocalContext.current
 
-    val rallyRed = Color(0xFFD73224) // Kolor AccentRed z SettingsScreen
-    val darkGray = Color(0xFF2B2A29) // Kolor TextPrimary z SettingsScreen
-    val lightBackground = Color(0xFFF4F3F2) // Kolor BgColor z SettingsScreen
+    val rallyRed = Color(0xFFD73224)
+    val darkGray = Color(0xFF2B2A29)
+    val lightBackground = Color(0xFFF4F3F2)
     val surfaceWhite = Color(0xFFFEFEFE)
 
     Dialog(onDismissRequest = onDismissRequest) {
@@ -675,13 +692,11 @@ fun RallySettingsDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // === DOKŁADNIE PRZENIESIONY STYL BUTTONU Z SETTINGSSCREEN ===
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp)
                 ) {
-                    // WARSTWA 1: Czerwone "podkreślenie"
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -690,7 +705,6 @@ fun RallySettingsDialog(
                             .background(rallyRed, RoundedCornerShape(50))
                     )
 
-                    // WARSTWA 2: Główny, czarny przycisk
                     Button(
                         onClick = {
                             viewModel.saveSettings(context)

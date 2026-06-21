@@ -1,87 +1,63 @@
 package com.example.roadbook.navigation
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.roadbook.model.ScrollDirection
-import com.example.roadbook.viewmodel.RoadbookViewModel
 import com.example.roadbook.ui.HomeScreen
 import com.example.roadbook.ui.MainApplicationScreen
-import com.example.roadbook.ui.SettingsScreen
-import com.example.roadbook.ui.CustomLottieSplashScreen
+import com.example.roadbook.ui.StageSelectionScreen
+import com.example.roadbook.viewmodel.RoadbookViewModel
 
 @Composable
 fun AppNavigation(
     viewModel: RoadbookViewModel,
-    navController: NavHostController = rememberNavController(),
     scrollSignal: Pair<ScrollDirection, Long>,
     onGenerateSignal: (ScrollDirection) -> Unit,
     onForceScreenRotation: () -> Unit,
     onExitApp: () -> Unit
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = "splash",
-        // Globalne wyłączenie animacji dla NavHost
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None }
-    ) {
-        composable(
-            route = "splash",
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
-        ) {
-            CustomLottieSplashScreen(
-                onAnimationComplete = {
-                    // Używamy launchSingleTop, aby nie tworzyć stosu ekranów
-                    navController.navigate("home") {
-                        popUpTo("splash") { inclusive = true }
-                    }
-                }
-            )
-        }
+    val navController = rememberNavController()
 
-        composable(
-            route = "home",
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
-        ) {
+    NavHost(navController = navController, startDestination = "home") {
+
+        // --- 1. EKRAN GŁÓWNY (HOME) ---
+        composable("home") {
             HomeScreen(
                 viewModel = viewModel,
-                onNavigateToRoadbook = { navController.navigate("roadbook") },
-                onNavigateToSettings = { navController.navigate("settings") },
+                onNavigateToRoadbook = {
+                    navController.navigate("stage_selection")
+                },
+                // USUNIĘTO onNavigateToSettings - HomeScreen obsługuje to teraz sam!
                 onExit = onExitApp
             )
         }
 
-        composable(
-            route = "settings",
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
-        ) {
-            SettingsScreen(
+        // --- 2. EKRAN WYBORU ETAPÓW (STAGE SELECTION) ---
+        composable("stage_selection") {
+            StageSelectionScreen(
                 viewModel = viewModel,
-                onDismissRequest = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onStageSelected = { selectedStage ->
+                    viewModel.selectedStageId.value = selectedStage.id
+                    navController.navigate("roadbook")
+                }
             )
         }
 
-        composable(
-            route = "roadbook",
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
-        ) {
+        // --- 3. EKRAN NAWIGACJI (ROADBOOK) ---
+        composable("roadbook") {
             MainApplicationScreen(
                 viewModel = viewModel,
                 scrollSignal = scrollSignal,
                 onGenerateSignal = onGenerateSignal,
                 onForceScreenRotation = onForceScreenRotation,
-                onCancelNavigation = { navController.popBackStack("home", inclusive = false) }
+                onCancelNavigation = {
+                    navController.popBackStack("stage_selection", inclusive = false)
+                }
             )
         }
     }
