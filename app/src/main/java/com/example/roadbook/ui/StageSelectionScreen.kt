@@ -1,5 +1,8 @@
 package com.example.roadbook.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -38,11 +41,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.roadbook.model.RallyStage
 import com.example.roadbook.model.StageCategory
+import com.example.roadbook.model.StageStatus
 import com.example.roadbook.ui.theme.Montserrat
 import com.example.roadbook.ui.theme.RallyBold
 import com.example.roadbook.viewmodel.RoadbookViewModel
 
-// --- TWOJA ŁADOWARKA (KULKA IDEALNIE NA SZCZYCIE) ---
 @Composable
 fun CustomRallyLoader(modifier: Modifier = Modifier, color: Color) {
     val transition = rememberInfiniteTransition(label = "spinner_trans")
@@ -85,7 +88,6 @@ fun CustomRallyLoader(modifier: Modifier = Modifier, color: Color) {
     }
 }
 
-// --- IKONY WEKTOROWE ---
 @Composable
 fun CustomArrowBackIcon(modifier: Modifier = Modifier, color: Color) {
     Canvas(modifier = modifier) {
@@ -133,9 +135,33 @@ fun StageSelectionScreen(
     var selectedTabIndex by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // NOWOŚĆ: Stan przechowujący aktualnie wybraną trasę do podejrzenia szczegółów przed startem
     var selectedStageForPreview by remember { mutableStateOf<RallyStage?>(null) }
+    var showImportDialog by remember { mutableStateOf(false) }
 
+    var showSuccessDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var infoDialogMessage by remember { mutableStateOf("") }
+    var isCloudImportActive by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel.isSyncingFromServer.value) {
+        if (!viewModel.isSyncingFromServer.value && isCloudImportActive) {
+            isCloudImportActive = false
+            infoDialogMessage = "Pomyślnie zaimportowano roadbook."
+            showSuccessDialog = true
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { realFileUri ->
+            viewModel.importUserGpxFile(context, realFileUri)
+            infoDialogMessage = "Import pliku zakończył się sukcesem."
+            showSuccessDialog = true
+        }
+    }
+
+    // NATYCHMIASTOWE ODPALENIE: Odświeżenie bazy tras przy każdym wejściu w ekran
     LaunchedEffect(Unit) {
         viewModel.checkForStageUpdates(context)
     }
@@ -147,16 +173,19 @@ fun StageSelectionScreen(
         matchesTab && matchesSearch
     }
 
-    // INTERCEPCJA: Jeśli pilot kliknął trasę, zamiast Scaffolda bazy ładujemy wydzielony ekran szczegółów
     if (selectedStageForPreview != null) {
         StageDetailsScreen(
             stage = selectedStageForPreview!!,
             onBackClick = { selectedStageForPreview = null },
-            onPreviewRoadbookClick = { /* Logika podglądu notatek */ },
+            onPreviewRoadbookClick = { },
             onStartClick = {
                 val finalStage = selectedStageForPreview!!
-                selectedStageForPreview = null // Zamknięcie podglądu
-                onStageSelected(finalStage)   // Wywołanie startu nawigacji odcinka
+                selectedStageForPreview = null
+                onStageSelected(finalStage)
+            },
+            onDeleteClick = {
+                viewModel.deleteUserStage(selectedStageForPreview!!.id)
+                selectedStageForPreview = null
             }
         )
     } else {
@@ -175,7 +204,7 @@ fun StageSelectionScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Button(
-                            onClick = { viewModel.importUserGpxFile(context, "Nowa_Trasa_Import.gpx") },
+                            onClick = { showImportDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth(0.7f)
                                 .height(72.dp),
@@ -195,157 +224,256 @@ fun StageSelectionScreen(
                 }
             }
         ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 32.dp, vertical = 40.dp)
-            ) {
-
-                // --- STATYCZNA SEKCJA GÓRNA (NAGŁÓWEK, WYSZUKIWARKA, TABS) ---
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    // Nagłówek PGA RALLY
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    ) {
-                        IconButton(
-                            onClick = onBackClick,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .background(deepGraphite.copy(alpha = 0.05f), CircleShape)
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(start = 32.dp, end = 32.dp, top = 40.dp, bottom = 32.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 12.dp)
                         ) {
-                            CustomArrowBackIcon(modifier = Modifier.size(32.dp), color = deepGraphite)
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(style = SpanStyle(color = deepGraphite)) { append("BAZA TRAS ") }
-                                withStyle(style = SpanStyle(color = rallyRed)) { append("PGA RALLY") }
-                            },
-                            fontFamily = RallyBold,
-                            fontSize = 42.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        )
-                    }
-                    Text(
-                        text = "Wybierz odcinek drogowy lub etap specjalny, aby załadować go do komputera nawigacyjnego.",
-                        fontFamily = Montserrat,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = deepGraphite.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(start = 72.dp, bottom = 24.dp),
-                        lineHeight = 22.sp
-                    )
-
-                    // Wyszukiwarka
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 24.dp)
-                            .background(surfaceWhite, RoundedCornerShape(50.dp))
-                            .border(3.dp, Color.Transparent, RoundedCornerShape(50.dp))
-                            .padding(24.dp, 8.dp, 8.dp, 8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        BasicTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            textStyle = TextStyle(fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = deepGraphite),
-                            modifier = Modifier.fillMaxWidth().padding(end = 80.dp),
-                            singleLine = true,
-                            decorationBox = { innerTextField ->
-                                if (searchQuery.isEmpty()) {
-                                    Text("Wyszukaj trasę po nazwie lub regionie...", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = deepGraphite.copy(alpha = 0.4f))
-                                }
-                                innerTextField()
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(deepGraphite.copy(alpha = 0.05f), CircleShape)
+                            ) {
+                                CustomArrowBackIcon(modifier = Modifier.size(32.dp), color = deepGraphite)
                             }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(style = SpanStyle(color = deepGraphite)) { append("BAZA TRAS ") }
+                                    withStyle(style = SpanStyle(color = rallyRed)) { append("PGA RALLY") }
+                                },
+                                fontFamily = RallyBold,
+                                fontSize = 42.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp
+                            )
+                        }
+
+                        Text(
+                            text = "Wybierz odcinek drogowy lub etap specjalny, aby załadować go do komputera nawigacyjnego.",
+                            fontFamily = Montserrat,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = deepGraphite.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(start = 72.dp, bottom = 24.dp),
+                            lineHeight = 22.sp
                         )
+
                         Box(
                             modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .size(64.dp)
-                                .background(deepGraphite, CircleShape)
-                                .clickable { },
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .padding(bottom = 24.dp)
+                                .background(surfaceWhite, RoundedCornerShape(50.dp))
+                                .border(3.dp, Color.Transparent, RoundedCornerShape(50.dp))
+                                .padding(24.dp, 8.dp, 8.dp, 8.dp),
+                            contentAlignment = Alignment.CenterStart
                         ) {
-                            CustomSearchIcon(modifier = Modifier.size(24.dp), color = surfaceWhite)
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                textStyle = TextStyle(fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = deepGraphite),
+                                modifier = Modifier.fillMaxWidth().padding(end = 80.dp),
+                                singleLine = true,
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) {
+                                        Text("Wyszukaj trasę po nazwie lub regionie...", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = deepGraphite.copy(alpha = 0.4f))
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .size(64.dp)
+                                    .background(deepGraphite, CircleShape)
+                                    .clickable { },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CustomSearchIcon(modifier = Modifier.size(24.dp), color = surfaceWhite)
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 24.dp)
+                        ) {
+                            HorizontalDivider(
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                                thickness = 2.dp,
+                                color = deepGraphite.copy(alpha = 0.06f)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                val tabs = listOf("Trasy Systemowe", "Trasy Użytkownika")
+                                tabs.forEachIndexed { index, title ->
+                                    val isActive = selectedTabIndex == index
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) { selectedTabIndex = index },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = title.uppercase(),
+                                            fontFamily = Montserrat,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            letterSpacing = 2.sp,
+                                            color = deepGraphite.copy(alpha = if (isActive) 1f else 0.4f),
+                                            modifier = Modifier.padding(vertical = 16.dp)
+                                        )
+                                        if (isActive) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(4.dp)
+                                                    .align(Alignment.BottomCenter)
+                                                    .background(rallyRed, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Zakładki (Tabs)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 24.dp)
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        HorizontalDivider(
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                            thickness = 2.dp,
-                            color = deepGraphite.copy(alpha = 0.06f)
-                        )
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            val tabs = listOf("Trasy Systemowe", "Trasy Użytkownika")
-                            tabs.forEachIndexed { index, title ->
-                                val isActive = selectedTabIndex == index
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) { selectedTabIndex = index },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = title.uppercase(),
-                                        fontFamily = Montserrat,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        letterSpacing = 2.sp,
-                                        color = deepGraphite.copy(alpha = if (isActive) 1f else 0.4f),
-                                        modifier = Modifier.padding(vertical = 16.dp)
+                        // PRODUKCYJNA CZYSTA SYNCHRONIZACJA: Sam loader, zero komunikatów tekstowych
+                        if (viewModel.isSyncingFromServer.value) {
+                            CustomRallyLoader(color = rallyRed)
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(filteredStages) { stage ->
+                                    RouteCard(
+                                        stage = stage,
+                                        onClick = { selectedStageForPreview = stage }
                                     )
-                                    if (isActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(4.dp)
-                                                .align(Alignment.BottomCenter)
-                                                .background(rallyRed, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        )
-                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // --- SEKCJA DYNAMICZNA OBSZARU ROBOCZEGO (WIDOK TRAS LUB IDEALNIE WYŚRODKOWANY LOADER) ---
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (viewModel.isSyncingFromServer.value) {
-                        CustomRallyLoader(
-                            color = rallyRed
-                        )
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(filteredStages) { stage ->
-                                // POPRAWKA: Kliknięcie kafelka najpierw wywołuje okno podglądu szczegółów
-                                RouteCard(stage = stage, onClick = { selectedStageForPreview = stage })
-                            }
+                if (showImportDialog) {
+                    ImportRoadbookDialog(
+                        onDismissRequest = { showImportDialog = false },
+                        onFileBrowseClick = {
+                            showImportDialog = false
+                            filePickerLauncher.launch("*/*")
+                        },
+                        onDownloadWithCodeClick = { code ->
+                            showImportDialog = false
+                            isCloudImportActive = true
+                            viewModel.importRoadbookFromCloud(context, code)
                         }
-                    }
+                    )
+                }
+
+                val duplicateToOverwrite = viewModel.pendingOverwriteResult.value
+                if (duplicateToOverwrite != null) {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.resolveOverwrite(false) },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    viewModel.resolveOverwrite(true)
+                                    infoDialogMessage = "Trasa została pomyślnie nadpisana."
+                                    showSuccessDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = rallyRed),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("TAK", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = surfaceWhite)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { viewModel.resolveOverwrite(false) }) {
+                                Text("NIE", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = deepGraphite)
+                            }
+                        },
+                        title = {
+                            Text(
+                                text = "DUPLIKAT TRASY",
+                                fontFamily = RallyBold,
+                                fontSize = 24.sp,
+                                color = deepGraphite,
+                                letterSpacing = 1.sp
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "Trasa o podanej nazwie \"${duplicateToOverwrite.title}\" już istnieje. Czy nadpisać?",
+                                fontFamily = Montserrat,
+                                fontSize = 16.sp,
+                                color = deepGraphite,
+                                lineHeight = 22.sp
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = surfaceWhite
+                    )
+                }
+
+                if (showSuccessDialog) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            selectedTabIndex = 1
+                            showSuccessDialog = false
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    selectedTabIndex = 1
+                                    showSuccessDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = deepGraphite),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("OK", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = surfaceWhite)
+                            }
+                        },
+                        title = {
+                            Text(
+                                text = "ZAKOŃCZONO",
+                                fontFamily = RallyBold,
+                                fontSize = 24.sp,
+                                color = Color(0xFF2E7D32),
+                                letterSpacing = 1.sp
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = infoDialogMessage,
+                                fontFamily = Montserrat,
+                                fontSize = 16.sp,
+                                color = deepGraphite,
+                                lineHeight = 22.sp
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = surfaceWhite
+                    )
                 }
             }
         }
@@ -353,11 +481,16 @@ fun StageSelectionScreen(
 }
 
 @Composable
-fun RouteCard(stage: RallyStage, onClick: () -> Unit) {
+fun RouteCard(
+    stage: RallyStage,
+    onClick: () -> Unit
+) {
     val surfaceWhite = Color(0xFFFEFEFE)
     val deepGraphite = Color(0xFF2B2A29)
     val rallyRed = Color(0xFFD73224)
     val thumbnailBg = Color(0xFFEAE9E8)
+
+    val formattedDistance = String.format("%.1f", stage.distanceKm).replace('.', ',')
 
     Card(
         modifier = Modifier
@@ -420,16 +553,17 @@ fun RouteCard(stage: RallyStage, onClick: () -> Unit) {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 22.sp,
-                    modifier = Modifier.height(44.dp)
+                    modifier = Modifier.height(48.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "${stage.distanceKm} km", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = deepGraphite.copy(alpha = 0.7f))
+                    Text(text = "$formattedDistance km", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = deepGraphite.copy(alpha = 0.7f), maxLines = 1)
                     Text(text = "•", fontFamily = Montserrat, fontWeight = FontWeight.Black, fontSize = 16.sp, color = rallyRed)
-                    Text(text = "${stage.waypointCount} WP", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = deepGraphite.copy(alpha = 0.7f))
+                    Text(text = "${stage.waypointCount} WP", fontFamily = Montserrat, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = deepGraphite.copy(alpha = 0.7f), maxLines = 1)
                 }
             }
         }

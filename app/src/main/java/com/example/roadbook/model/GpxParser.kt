@@ -3,11 +3,23 @@ package com.example.roadbook.model
 import android.content.Context
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import java.io.InputStream
 
-fun parseGpxFile(context: Context): List<RallyWaypoint> {
+// NOWOŚĆ: Kontener na komplet danych po sparsowaniu dowolnego pliku Open Rally
+data class ParsedGpxResult(
+    val title: String,
+    val distanceKm: Double,
+    val waypointCount: Int,
+    val waypoints: List<RallyWaypoint>
+)
+
+// POPRAWKA: Funkcja przyjmuje teraz dowolny InputStream (z chmury, dysku lub assets)
+fun parseGpxFile(inputStream: InputStream): ParsedGpxResult {
     val waypointList = mutableListOf<RallyWaypoint>()
+    var stageTitle = "Zaimportowana Trasa" // Nazwa domyślna
+    var totalDistanceKm = 0.0
+
     try {
-        val inputStream = context.assets.open("roadbook.gpx")
         val factory = XmlPullParserFactory.newInstance()
         val parser = factory.newPullParser()
         parser.setInput(inputStream, "UTF-8")
@@ -20,20 +32,21 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
         var tulipBase64 = ""
         var notesBase64 = ""
         var validationRadius = 90f
-        var openingRadius = 0f // Domyślnie 0f - punkt ślepy/ukryty (np. WPC)
+        var openingRadius = 0f
         var danger = 0
         var speed = 0
         var gpxCap = 0
         var wpType = OpenRallyWpType.STANDARD
 
-        // Dynamiczny licznik rzeczywistych Waypointów rajdowych
         var waypointCounter = 0
+        var isInsideWpt = false // Pomocnicza flaga do odróżnienia nazwy trasy od nazwy punktu
 
         while (eventType != XmlPullParser.END_DOCUMENT) {
             val tagName = parser.name
             if (eventType == XmlPullParser.START_TAG) {
                 when (tagName) {
                     "wpt" -> {
+                        isInsideWpt = true
                         lat = parser.getAttributeValue(null, "lat")?.toDouble() ?: 0.0
                         lon = parser.getAttributeValue(null, "lon")?.toDouble() ?: 0.0
                         name = ""
@@ -41,14 +54,28 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
                         tulipBase64 = ""
                         notesBase64 = ""
                         validationRadius = 90f
-                        openingRadius = 0f // Reset do zera dla czystej kratki roadbooka
+                        openingRadius = 0f
                         danger = 0
                         speed = 0
                         gpxCap = 0
                         wpType = OpenRallyWpType.STANDARD
                     }
-                    "name" -> name = parser.nextText()
-                    "openrally:distance" -> distanceKm = parser.nextText().toFloatOrNull() ?: 0f
+                    "name" -> {
+                        if (!isInsideWpt) {
+                            // Nazwa złapana przed wejściem w punkty to globalny tytuł rajdu/odcinka
+                            val globalName = parser.nextText()
+                            if (globalName.isNotBlank()) stageTitle = globalName
+                        } else {
+                            name = parser.nextText()
+                        }
+                    }
+                    "openrally:distance" -> {
+                        distanceKm = parser.nextText().toFloatOrNull() ?: 0f
+                        // Najwyższy odczyt dystansu określa całkowitą długość etapu
+                        if (distanceKm > totalDistanceKm) {
+                            totalDistanceKm = distanceKm.toDouble()
+                        }
+                    }
                     "openrally:tulip" -> tulipBase64 = parser.nextText()
                     "openrally:notes" -> notesBase64 = parser.nextText()
                     "openrally:danger" -> danger = parser.nextText().toIntOrNull() ?: 0
@@ -57,22 +84,22 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
 
                     "openrally:wpm" -> {
                         wpType = OpenRallyWpType.WPM
-                        validationRadius = 90f // Standard FIA dla Masked
-                        openingRadius = 800f  // Standard FIA dla Masked (Otwarcie z 800m)
+                        validationRadius = 90f
+                        openingRadius = 800f
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
                     "openrally:wpc" -> {
                         wpType = OpenRallyWpType.WPC
-                        validationRadius = 300f // Standard FIA dla Control
-                        openingRadius = 0f     // PUNKT ŚLEPY - NIGDY SIĘ NIE OTWIERA
+                        validationRadius = 300f
+                        openingRadius = 0f
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
                     "openrally:wps" -> {
                         wpType = OpenRallyWpType.WPS
-                        validationRadius = 90f  // Standard FIA dla Safety
-                        openingRadius = 1000f // Standard FIA dla Safety (Otwarcie z 1000m)
+                        validationRadius = 90f
+                        openingRadius = 1000f
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
@@ -93,14 +120,14 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
                     "openrally:wpv" -> {
                         wpType = OpenRallyWpType.WPV
                         validationRadius = 90f
-                        openingRadius = Float.MAX_VALUE // FIA: Punkt widoczny od samego początku roli aktywnej
+                        openingRadius = Float.MAX_VALUE
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
                     "openrally:wpe" -> {
                         wpType = OpenRallyWpType.WPE
                         validationRadius = 90f
-                        openingRadius = Float.MAX_VALUE // Eclipse/Entry również traktujemy jako jawny od startu
+                        openingRadius = Float.MAX_VALUE
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
@@ -118,14 +145,14 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
                     }
                     "openrally:dss" -> {
                         wpType = OpenRallyWpType.DSS
-                        openingRadius = Float.MAX_VALUE // Start odcinka jest zawsze widoczny
+                        openingRadius = Float.MAX_VALUE
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
                     "openrally:ass" -> {
                         wpType = OpenRallyWpType.ASS
                         validationRadius = 90f
-                        openingRadius = Float.MAX_VALUE // Meta odcinka jest zawsze widoczna
+                        openingRadius = Float.MAX_VALUE
                         parser.getAttributeValue(null, "clear")?.toFloatOrNull()?.let { validationRadius = it }
                         parser.getAttributeValue(null, "open")?.toFloatOrNull()?.let { openingRadius = it }
                     }
@@ -155,6 +182,7 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
                     }
                 }
             } else if (eventType == XmlPullParser.END_TAG && tagName == "wpt") {
+                isInsideWpt = false
                 val isActualWaypoint = wpType == OpenRallyWpType.WPM ||
                         wpType == OpenRallyWpType.WPC ||
                         wpType == OpenRallyWpType.WPS ||
@@ -194,5 +222,12 @@ fun parseGpxFile(context: Context): List<RallyWaypoint> {
     } catch (e: Exception) {
         e.printStackTrace()
     }
-    return waypointList
+
+    // Zwracamy spakowaną strukturę z kompletem danych i realnymi wyliczeniami
+    return ParsedGpxResult(
+        title = stageTitle,
+        distanceKm = totalDistanceKm,
+        waypointCount = waypointList.size,
+        waypoints = waypointList
+    )
 }

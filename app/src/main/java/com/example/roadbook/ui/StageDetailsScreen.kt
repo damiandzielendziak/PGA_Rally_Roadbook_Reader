@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,17 +30,21 @@ import com.example.roadbook.ui.theme.Montserrat
 import com.example.roadbook.ui.theme.RallyBold
 
 @Composable
-fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unresolved Reference
+fun StageDetailsScreen(
     stage: RallyStage,
     onBackClick: () -> Unit,
     onPreviewRoadbookClick: () -> Unit,
-    onStartClick: () -> Unit
+    onStartClick: () -> Unit,
+    onDeleteClick: () -> Unit // NOWOŚĆ: Przekazanie akcji wymazywania trasy z bazy
 ) {
     val gravelBg = Color(0xFFF4F3F2)
     val deepGraphite = Color(0xFF2B2A29)
     val rallyRed = Color(0xFFD73224)
     val surfaceWhite = Color(0xFFFEFEFE)
     val thumbnailBg = Color(0xFFEAE9E8)
+
+    // NOWOŚĆ: Stan kontrolujący wyświetlanie okna potwierdzenia
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -48,10 +53,10 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 40.dp, vertical = 32.dp), // Poprawka 4: Przyciski mieszczą się na ekranie
+                .padding(horizontal = 40.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // --- POPRAWKA 1: NAGŁÓWEK (Spójna typografia i rajdowa ikona) ---
+            // --- 1. NAGŁÓWEK ---
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -98,13 +103,13 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- POPRAWKA 2: PANORAMICZNY PODGLĄD MAPY (Zredukowana wysokość do 260.dp) ---
+            // --- 2. PANORAMICZNY PODGLĄD MAPY ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp) // Proporcje panoramiczne zgodne z makietą
-                    .background(thumbnailBg, RoundedCornerShape(32.dp))
-                    .border(1.dp, deepGraphite.copy(alpha = 0.08f), RoundedCornerShape(32.dp))
+                    .height(260.dp)
+                    .background(thumbnailBg, RoundedCornerShape(16.dp))
+                    .border(1.dp, deepGraphite.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -149,10 +154,10 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- POPRAWKA 3: SPECYFIKACJA ETAPU (Wizualnie zgodna z makietą HTML) ---
+            // --- 3. SPECYFIKACJA ETAPU ---
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = surfaceWhite,
                 shadowElevation = 4.dp
             ) {
@@ -177,7 +182,7 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // --- INFORMACJA OPERACYJNA ---
+            // --- 4. INFORMACJA OPERACYJNA ---
             Text(
                 text = "Kliknięcie przycisku START uruchomi rejestrację OS i aktywuje pełny ekran nawigatora. Przycisk powyżej pozwala na bezpieczne przestudiowanie notatek i legenda roadbooka bez naliczania czasu przejazdu.",
                 fontFamily = Montserrat,
@@ -188,11 +193,33 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // --- POPRAWKA 4: DOLNA KONSOLA STERUJĄCA (Zoptymalizowana wysokość do 62.dp) ---
+            // --- 5. DOLNA KONSOLA STERUJĄCA ---
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // NOWOŚĆ: Warunkowy przycisk usuwania wyświetlany dokładnie NAD "PRZEGLĄDAJ ROADBOOK"
+                if (stage.category == StageCategory.USER) {
+                    Button(
+                        onClick = { showDeleteConfirmation = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(62.dp)
+                            .border(2.5.dp, rallyRed, RoundedCornerShape(50)),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(containerColor = surfaceWhite)
+                    ) {
+                        Text(
+                            text = "USUŃ TRASĘ",
+                            fontFamily = Montserrat,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = rallyRed,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
+
                 Button(
                     onClick = onPreviewRoadbookClick,
                     modifier = Modifier
@@ -217,6 +244,50 @@ fun StageDetailsScreen( // Przywrócona oryginalna nazwa - naprawia błąd Unres
                     }
                 }
             }
+        }
+
+        // --- NOWOŚĆ: DIALOG WERYFIKACJI BEZPIECZEŃSTWA ---
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeleteClick() // Wywołanie przekazanej lambdy usuwania
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = rallyRed),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("TAK, USUŃ", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = surfaceWhite)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("ANULUJ", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = deepGraphite)
+                    }
+                },
+                title = {
+                    Text(
+                        text = "POTWIERDŹ USUNIĘCIE",
+                        fontFamily = RallyBold,
+                        fontSize = 24.sp,
+                        color = deepGraphite,
+                        letterSpacing = 1.sp
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Czy na pewno chcesz usunąć tę trasę z pamięci urządzenia? Tej operacji nie da się cofnąć.",
+                        fontFamily = Montserrat,
+                        fontSize = 16.sp,
+                        color = deepGraphite,
+                        lineHeight = 22.sp
+                    )
+                },
+                shape = RoundedCornerShape(12.dp),
+                containerColor = surfaceWhite
+            )
         }
     }
 }
