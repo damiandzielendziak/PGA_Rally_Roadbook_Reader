@@ -17,12 +17,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -122,7 +129,6 @@ fun MainApplicationScreen(
         }
     }
 
-    // === POPRAWKA LOGICZNA: Powrót do aktywnej kratki po zamknięciu menu następuje TYLKO przy włączonym Auto-Scrollu ===
     LaunchedEffect(viewModel.showStartupDialog.value) {
         if (!viewModel.showStartupDialog.value && !viewModel.isPreviewMode.value && viewModel.waypointList.value.isNotEmpty()) {
             if (viewModel.isAutoScrollEnabled.value) {
@@ -271,29 +277,48 @@ fun MainApplicationScreen(
             Button(
                 onClick = {
                     viewModel.isPreviewMode.value = false
-                    viewModel.showStartupDialog.value = true
-                    viewModel.startLocationUpdates(context)
+                    onCancelNavigation()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFEB3B)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .height(56.dp)
-                    .fillMaxWidth(0.5f)
-                    .border(3.dp, Color.Black, MaterialTheme.shapes.large),
-                shape = MaterialTheme.shapes.large
+                    .padding(bottom = 28.dp)
+                    .fillMaxWidth(0.65f)
+                    .height(72.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD73224)),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
             ) {
                 Text(
                     text = "ZAKOŃCZ PODGLĄD",
-                    fontFamily = RallyBold,
-                    color = Color.Black,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontFamily = Montserrat,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    letterSpacing = 2.sp,
+                    color = Color(0xFFFEFEFE)
                 )
             }
         }
 
+        // --- OKNO DIALOGOWE MENU PRZEDSTARTOWEGO ---
         if (viewModel.showStartupDialog.value) {
+            val currentMeta = viewModel.activeStageMetadata.value
+            val displayTitle = currentMeta?.title ?: "Puszcza Zielonka - SS01"
+
+            val displayDistance = remember(currentMeta) {
+                if (currentMeta != null) {
+                    String.format("%.1f km", currentMeta.distanceKm).replace('.', ',')
+                } else {
+                    "39,5 km"
+                }
+            }
+            val displayWpCount = remember(viewModel.waypointList.value, currentMeta) {
+                if (viewModel.waypointList.value.isNotEmpty()) {
+                    viewModel.waypointList.value.size.toString()
+                } else {
+                    (currentMeta?.waypointCount ?: 25).toString()
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -303,60 +328,56 @@ fun MainApplicationScreen(
             ) {
                 Surface(
                     modifier = Modifier
-                        .width(720.dp)
+                        .fillMaxWidth(0.85f)
+                        .widthIn(max = 680.dp)
                         .wrapContentHeight(),
                     color = Color(0xFFFEFEFE),
-                    shape = RoundedCornerShape(36.dp),
+                    shape = RoundedCornerShape(28.dp),
                     shadowElevation = 24.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(48.dp),
-                        verticalArrangement = Arrangement.spacedBy(28.dp)
+                        modifier = Modifier.padding(40.dp),
+                        verticalArrangement = Arrangement.spacedBy(22.dp)
                     ) {
                         Column {
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "PGA RALLY ",
-                                    fontFamily = Montserrat,
-                                    fontSize = 38.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color(0xFF2B2A29)
-                                )
-                                Text(
-                                    text = "ROADBOOK READER",
-                                    fontFamily = Montserrat,
-                                    fontSize = 38.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color(0xFFD73224)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(style = SpanStyle(color = Color(0xFF2B2A29))) { append("PGA RALLY ") }
+                                    withStyle(style = SpanStyle(color = Color(0xFFD73224))) { append("ROADBOOK READER") }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                fontFamily = Montserrat,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-1.2).sp,
+                                lineHeight = 40.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = "Poprawnie wczytano etap. Zapoznaj się ze szczegółami odcinka oraz bieżącym stanem systemu",
                                 fontFamily = Montserrat,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFF2B2A29).copy(alpha = 0.6f),
-                                lineHeight = 26.sp
+                                lineHeight = 22.sp
                             )
                         }
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(
-                                    Color(0xFFF1F0EF),
-                                    shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp)
-                                )
+                                .background(Color(0xFFF1F0EF), shape = RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .height(IntrinsicSize.Max)
                         ) {
                             Box(modifier = Modifier.width(6.dp).fillMaxHeight().background(Color(0xFFD73224)))
 
-                            Column(modifier = Modifier.padding(24.dp).weight(1f)) {
-                                Text(text = "WCZYTANY ETAP:", fontFamily = Montserrat, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.5f), letterSpacing = 1.sp)
-                                Text(text = "Puszcza Zielonka - SS01", fontFamily = Montserrat, fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
+                            Column(modifier = Modifier.padding(20.dp).weight(1f)) {
+                                val labelColor = Color(0xFF2B2A29).copy(alpha = 0.5f)
+                                Text(text = "WCZYTANY ETAP:", fontFamily = Montserrat, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = labelColor, letterSpacing = 1.sp)
+                                Text(text = displayTitle, fontFamily = Montserrat, fontSize = 21.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
 
-                                Spacer(modifier = Modifier.height(18.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
                                     this.drawLine(
@@ -367,16 +388,16 @@ fun MainApplicationScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(18.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = "DYSTANS:", fontFamily = Montserrat, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.5f), letterSpacing = 1.sp)
-                                        Text(text = "39,5 km", fontFamily = Montserrat, fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
+                                        Text(text = "DYSTANS:", fontFamily = Montserrat, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = labelColor, letterSpacing = 1.sp)
+                                        Text(text = displayDistance, fontFamily = Montserrat, fontSize = 21.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = "LICZBA WP:", fontFamily = Montserrat, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.5f), letterSpacing = 1.sp)
-                                        Text(text = "${viewModel.waypointList.value.size}", fontFamily = Montserrat, fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
+                                        Text(text = "LICZBA WP:", fontFamily = Montserrat, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = labelColor, letterSpacing = 1.sp)
+                                        Text(text = displayWpCount, fontFamily = Montserrat, fontSize = 21.sp, fontWeight = FontWeight.Black, color = Color(0xFF2B2A29))
                                     }
                                 }
                             }
@@ -384,76 +405,63 @@ fun MainApplicationScreen(
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(20.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             HorizontalDivider(thickness = 1.dp, color = Color(0xFF2B2A29).copy(alpha = 0.08f))
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = "Stan baterii:", fontFamily = Montserrat, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
-                                Text(text = viewModel.batteryLevel.value, fontFamily = Montserrat, color = Color(0xFF388E3C), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                Text(text = "Stan baterii:", fontFamily = Montserrat, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
+                                Text(text = viewModel.batteryLevel.value, fontFamily = Montserrat, color = Color(0xFF388E3C), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = "Sygnał satelitarny:", fontFamily = Montserrat, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
+                                Text(text = "Sygnał satelitarny:", fontFamily = Montserrat, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
                                 val isGpsActive = viewModel.isGpsActive.value
                                 Text(
                                     text = if (isGpsActive) "Aktywny" else viewModel.gpsSignalQuality.value,
                                     fontFamily = Montserrat,
                                     color = if (isGpsActive) Color(0xFF388E3C) else Color(0xFF1976D2),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
+                                    fontSize = 18.sp
                                 )
                             }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = "Kontroler bluetooth:", fontFamily = Montserrat, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
+                                Text(text = "Kontroler bluetooth:", fontFamily = Montserrat, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
                                 val isConnected = viewModel.bluetoothDeviceName.value != "Nie wykryto"
                                 Text(
                                     text = viewModel.bluetoothDeviceName.value,
                                     fontFamily = Montserrat,
                                     color = if (isConnected) Color(0xFF388E3C) else Color(0xFFD73224),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
+                                    fontSize = 18.sp
                                 )
                             }
 
                             if (viewModel.bluetoothDeviceName.value != "Nie wykryto") {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "Profil kontrolera:", fontFamily = Montserrat, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
-                                    Text(text = viewModel.controllerProfile.value, fontFamily = Montserrat, color = Color(0xFFFF9800), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                    Text(text = "Profil kontrolera:", fontFamily = Montserrat, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2B2A29).copy(alpha = 0.8f))
+                                    Text(text = viewModel.controllerProfile.value, fontFamily = Montserrat, color = Color(0xFFFF9800), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                 }
                             }
                         }
 
                         Text(
-                            text = "Wybór przycisku START uruchomi nawigację po wczytanym odcinku specjalnym.\n\nOpcja PRZEGLĄDAJ ROADBOOK pozwala na zapoznanie się z roadbookiem przed rozpoczęciem nawigacji i nie powoduje rozpoczęcia odcinka.",
+                            text = "Wybór przycisku START uruchomi nawigację po wczytanym odcinku specjalnym.",
                             fontFamily = Montserrat,
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF2B2A29).copy(alpha = 0.5f),
-                            lineHeight = 24.sp,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            val isStarted = viewModel.isNavigationStarted.value
-
-                            if (!isStarted) {
-                                Button(
-                                    onClick = { viewModel.enterPreviewMode() },
-                                    shape = RoundedCornerShape(50.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEFEFE)),
-                                    contentPadding = PaddingValues(vertical = 22.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(2.dp, Color(0xFF2B2A29), RoundedCornerShape(50.dp))
-                                ) {
-                                    Text("PRZEGLĄDAJ ROADBOOK", fontFamily = Montserrat, color = Color(0xFF2B2A29), fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                                }
-                            }
+                            val intentStartupKey = viewModel.showStartupDialog.value
+                            val isStarted = remember(intentStartupKey) { viewModel.isNavigationStarted.value }
 
                             Button(
                                 onClick = {
@@ -467,44 +475,37 @@ fun MainApplicationScreen(
                                     onCancelNavigation()
                                 },
                                 shape = RoundedCornerShape(50.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD73224).copy(alpha = 0.03f)),
-                                contentPadding = PaddingValues(vertical = 22.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEFEFE)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, Color(0xFFD73224).copy(alpha = 0.2f), RoundedCornerShape(50.dp))
+                                    .height(62.dp)
+                                    .border(2.5.dp, Color(0xFFD73224), RoundedCornerShape(50.dp))
                             ) {
-                                Text("WYJDŹ", fontFamily = Montserrat, color = Color(0xFFD73224), fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                Text("WRÓĆ DO SZCZEGÓŁÓW ODCINKA", fontFamily = Montserrat, color = Color(0xFFD73224), fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                             }
 
-                            Button(
-                                onClick = {
-                                    if (isStarted) {
-                                        viewModel.resumeNavigation()
-                                    } else {
-                                        viewModel.confirmStart()
-                                    }
-                                    viewModel.startLocationUpdates(context)
-                                },
-                                shape = RoundedCornerShape(50.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B2A29)),
-                                contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Box(modifier = Modifier.fillMaxWidth().height(62.dp).offset(y = 4.dp).background(Color(0xFFD73224), RoundedCornerShape(50.dp)))
+                                Button(
+                                    onClick = {
+                                        if (isStarted) {
+                                            viewModel.resumeNavigation()
+                                        } else {
+                                            viewModel.confirmStart()
+                                        }
+                                        viewModel.startLocationUpdates(context)
+                                    },
+                                    shape = RoundedCornerShape(50.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B2A29)),
+                                    modifier = Modifier.fillMaxWidth().height(62.dp)
+                                ) {
                                     Text(
                                         text = if (isStarted) { "WZNÓW" } else { "START" },
                                         fontFamily = Montserrat,
                                         color = Color(0xFFFEFEFE),
-                                        fontSize = 20.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 2.sp,
-                                        modifier = Modifier.padding(vertical = 20.dp)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(5.dp)
-                                            .background(Color(0xFFD73224))
+                                        letterSpacing = 2.sp
                                     )
                                 }
                             }
@@ -514,20 +515,25 @@ fun MainApplicationScreen(
             }
         }
 
-        FloatingNavigationMenu(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            onSettingsClick = { viewModel.showSettings.value = true },
-            onPauseClick = { context.executeControllerActionHub() },
-            onRotationClick = onForceScreenRotation,
-            isPaused = viewModel.showStartupDialog.value && viewModel.isNavigationStarted.value
-        )
+        // FIX: Menu nawigacyjne zostało zamknięte w bloku warunkowym. Pojawi się dopiero, gdy okno przedstartowe zostanie zamknięte.
+        if (!viewModel.showStartupDialog.value) {
+            FloatingNavigationMenu(
+                modifier = Modifier.align(Alignment.BottomEnd),
+                onSettingsClick = { viewModel.showSettings.value = true },
+                onPauseClick = { context.executeControllerActionHub() },
+                onRotationClick = onForceScreenRotation,
+                isPaused = viewModel.isNavigationStarted.value
+            )
+        }
     }
 
     if (viewModel.showSettings.value) {
-        RallySettingsDialog(
-            viewModel = viewModel,
-            onDismissRequest = { viewModel.showSettings.value = false }
-        )
+        Dialog(onDismissRequest = { viewModel.showSettings.value = false }) {
+            RallySettingsDialog(
+                viewModel = viewModel,
+                onDismissRequest = { viewModel.showSettings.value = false }
+            )
+        }
     }
 }
 
@@ -543,188 +549,186 @@ fun RallySettingsDialog(
     val lightBackground = Color(0xFFF4F3F2)
     val surfaceWhite = Color(0xFFFEFEFE)
 
-    Dialog(onDismissRequest = onDismissRequest) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = lightBackground,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = lightBackground,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "ROADBOOK ",
+                    fontFamily = Montserrat,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = darkGray
+                )
+                Text(
+                    text = "SETTINGS",
+                    fontFamily = Montserrat,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = rallyRed
+                )
+            }
+
+            HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Text("Layout Scale", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = darkGray,
+                        modifier = Modifier.size(32.dp),
+                        onClick = {
+                            val currentPct = (viewModel.uiScale.value * 100).roundToInt()
+                            val newPct = (currentPct - 10).coerceAtLeast(80)
+                            viewModel.uiScale.value = newPct / 100f
+                        }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("-", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     Text(
-                        text = "ROADBOOK ",
+                        text = "${(viewModel.uiScale.value * 100).roundToInt()}%",
                         fontFamily = Montserrat,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        fontWeight = FontWeight.Bold,
                         color = darkGray
                     )
-                    Text(
-                        text = "SETTINGS",
-                        fontFamily = Montserrat,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = rallyRed
-                    )
-                }
 
-                HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Layout Scale", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = darkGray,
-                            modifier = Modifier.size(32.dp),
-                            onClick = {
-                                val currentPct = (viewModel.uiScale.value * 100).roundToInt()
-                                val newPct = (currentPct - 10).coerceAtLeast(80)
-                                viewModel.uiScale.value = newPct / 100f
-                            }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("-", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
-                            }
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = darkGray,
+                        modifier = Modifier.size(32.dp),
+                        onClick = {
+                            val currentPct = (viewModel.uiScale.value * 100).roundToInt()
+                            val newPct = (currentPct + 10).coerceAtMost(120)
+                            viewModel.uiScale.value = newPct / 100f
                         }
-
-                        Text(
-                            text = "${(viewModel.uiScale.value * 100).roundToInt()}%",
-                            fontFamily = Montserrat,
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            fontWeight = FontWeight.Bold,
-                            color = darkGray
-                        )
-
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = darkGray,
-                            modifier = Modifier.size(32.dp),
-                            onClick = {
-                                val currentPct = (viewModel.uiScale.value * 100).roundToInt()
-                                val newPct = (currentPct + 10).coerceAtMost(120)
-                                viewModel.uiScale.value = newPct / 100f
-                            }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("+", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
-                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("+", fontFamily = Montserrat, color = surfaceWhite, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
+            }
 
-                HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
+            HorizontalDivider(color = darkGray.copy(alpha = 0.08f), thickness = 1.dp)
 
-                val switchColors = SwitchDefaults.colors(
-                    checkedThumbColor = surfaceWhite,
-                    checkedTrackColor = rallyRed,
-                    uncheckedThumbColor = darkGray,
-                    uncheckedTrackColor = Color(0xFFF1F0EF),
-                    checkedBorderColor = rallyRed,
-                    uncheckedBorderColor = darkGray.copy(alpha = 0.12f)
+            val switchColors = SwitchDefaults.colors(
+                checkedThumbColor = surfaceWhite,
+                checkedTrackColor = rallyRed,
+                uncheckedThumbColor = darkGray,
+                uncheckedTrackColor = Color(0xFFF1F0EF),
+                checkedBorderColor = rallyRed,
+                uncheckedBorderColor = darkGray.copy(alpha = 0.12f)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Orientacja pozioma", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                    Text("Zablokuj interfejs w poziomie", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
+                }
+                Switch(
+                    checked = viewModel.isLandscapeOrientation.value,
+                    onCheckedChange = { viewModel.isLandscapeOrientation.value = it },
+                    colors = switchColors
                 )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Orientacja pozioma", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
-                        Text("Zablokuj interfejs w poziomie", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
-                    }
-                    Switch(
-                        checked = viewModel.isLandscapeOrientation.value,
-                        onCheckedChange = { viewModel.isLandscapeOrientation.value = it },
-                        colors = switchColors
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Tap to Scroll", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                Switch(
+                    checked = viewModel.tapsEnabled.value,
+                    onCheckedChange = { viewModel.tapsEnabled.value = it },
+                    colors = switchColors
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Auto-Scroll Roadbook", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                Switch(
+                    checked = viewModel.isAutoScrollEnabled.value,
+                    onCheckedChange = { viewModel.isAutoScrollEnabled.value = it },
+                    colors = switchColors
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("GPS Simulation", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
+                    Text("Drives route at 72 km/h", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
                 }
+                Switch(
+                    checked = viewModel.isSimulationMode.value,
+                    onCheckedChange = { viewModel.toggleSimulation(it) },
+                    colors = switchColors
+                )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Tap to Scroll", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
-                    Switch(
-                        checked = viewModel.tapsEnabled.value,
-                        onCheckedChange = { viewModel.tapsEnabled.value = it },
-                        colors = switchColors
-                    )
-                }
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Auto-Scroll Roadbook", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
-                    Switch(
-                        checked = viewModel.isAutoScrollEnabled.value,
-                        onCheckedChange = { viewModel.isAutoScrollEnabled.value = it },
-                        colors = switchColors
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("GPS Simulation", fontFamily = Montserrat, fontWeight = FontWeight.Bold, color = darkGray)
-                        Text("Drives route at 72 km/h", fontFamily = Montserrat, fontSize = 12.sp, color = darkGray.copy(alpha = 0.5f))
-                    }
-                    Switch(
-                        checked = viewModel.isSimulationMode.value,
-                        onCheckedChange = { viewModel.toggleSimulation(it) },
-                        colors = switchColors
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .offset(y = 4.dp)
-                            .background(rallyRed, RoundedCornerShape(50))
-                    )
+                        .height(64.dp)
+                        .offset(y = 4.dp)
+                        .background(rallyRed, RoundedCornerShape(50))
+                )
 
-                    Button(
-                        onClick = {
-                            viewModel.saveSettings(context)
-                            onDismissRequest()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp),
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = darkGray)
-                    ) {
-                        Text(
-                            text = "SAVE SETTINGS",
-                            fontFamily = Montserrat,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = surfaceWhite,
-                            letterSpacing = 2.sp
-                        )
-                    }
+                Button(
+                    onClick = {
+                        viewModel.saveSettings(context)
+                        onDismissRequest()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = darkGray)
+                ) {
+                    Text(
+                        text = "SAVE SETTINGS",
+                        fontFamily = Montserrat,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = surfaceWhite,
+                        letterSpacing = 2.sp
+                    )
                 }
             }
         }

@@ -1,7 +1,11 @@
 package com.example.roadbook.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -121,7 +125,7 @@ fun HomeScreen(
                                 .height(72.dp)
                         ) {
                             Text(
-                                text = "PRZEGLĄDAJ ETAPY",
+                                text = "PRZEGLĄDAJ TRASY",
                                 fontFamily = Montserrat,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -199,7 +203,13 @@ fun HomeScreen(
             }
         }
 
-        if (viewModel.showSettings.value) {
+        // --- POPRAWKA: CZYSTY, PEŁNOEKRANOWY WJAZD OD KRAWĘDZI DO KRAWĘDZI ---
+        AnimatedVisibility(
+            visible = viewModel.showSettings.value,
+            enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(400)),
+            exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(400)),
+            modifier = Modifier.fillMaxSize()
+        ) {
             SettingsScreen(
                 viewModel = viewModel,
                 onDismissRequest = { viewModel.showSettings.value = false }

@@ -56,7 +56,8 @@ dependencies {
     implementation("com.airbnb.android:lottie-compose:6.0.0")
     // SPLASH SCREEN API
     implementation("androidx.core:core-splashscreen:1.0.1")
-
+// Dodaj to w sekcji dependencies
+    implementation("io.coil-kt:coil-compose:2.6.0")
     // SILNIK ANIMACJI LOTTIE (POPRAWKA: Usunięto duplikat linii)
     implementation("com.airbnb.android:lottie-compose:6.4.0")
 } // POPRAWKA: Usunięto nadmiarowy, zdublowany nawias klamrowy, który crashował Gradle

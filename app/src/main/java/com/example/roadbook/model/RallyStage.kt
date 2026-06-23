@@ -20,5 +20,11 @@ data class RallyStage(
     val category: StageCategory,
     val status: StageStatus,
     val version: String,
-    val description: String = "Puszcza Zielonka - Trasa rajdowa"
+    val description: String = "Puszcza Zielonka - Trasa rajdowa",
+    val dominantSurface: String? = null, // Zachowane dla pełnej kompatybilności z widokiem kafelków dwukolumnowych
+
+    // --- INTEGRACJA Z NOWĄ SPECYFIKACJĄ SERWERA ---
+    val imageUrl: String? = null,        // Link do miniatury pobierany z pliku JSON
+    val password: String? = null,        // Hasło blokady dla tras użytkownika (np. "9999")
+    val expiresAt: Long? = null          // Timestamp określający ważność odcinka w milisekundach
 )

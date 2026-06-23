@@ -1,10 +1,5 @@
 package com.example.roadbook.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -26,83 +21,50 @@ fun FloatingNavigationMenu(
     onRotationClick: () -> Unit,
     isPaused: Boolean
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-
+    // Wszystkie 3 przyciski są teraz stale widoczne i gotowe do natychmiastowej akcji
     Column(
         modifier = modifier.padding(24.dp),
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Pionowe sub-menu rozwijane w górę (zbalansowane do 100.dp)
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
+        // Przycisk 1: Obrót ekranu
+        FloatingActionButton(
+            onClick = { onRotationClick() },
+            containerColor = Color.White,
+            contentColor = Color.Black,
+            shape = CircleShape,
+            modifier = Modifier.size(100.dp).border(4.dp, Color.Black, CircleShape)
         ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            Text("↻", fontSize = 54.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Przycisk 2: Menu Pauzy (Zatrzymuje GPS i wywołuje Boot Loader z flagą WZNÓW)
+        FloatingActionButton(
+            onClick = { onPauseClick() },
+            containerColor = if (isPaused) Color(0xFFD32F2F) else Color.White,
+            contentColor = if (isPaused) Color.White else Color.Black,
+            shape = CircleShape,
+            modifier = Modifier.size(100.dp).border(4.dp, if (isPaused) Color.Red else Color.Black, CircleShape)
+        ) {
+            Row(
+                modifier = Modifier.size(34.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Item 3: Obrót ekranu
-                FloatingActionButton(
-                    onClick = {
-                        onRotationClick()
-                        isExpanded = false
-                    },
-                    containerColor = Color.White,
-                    contentColor = Color.Black,
-                    shape = CircleShape,
-                    modifier = Modifier.size(100.dp).border(4.dp, Color.Black, CircleShape)
-                ) {
-                    Text("↻", fontSize = 54.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // Item 2: Menu Pauzy (Zatrzymuje GPS i wywołuje Boot Loader z flagą WZNÓW)
-                FloatingActionButton(
-                    onClick = {
-                        onPauseClick()
-                        isExpanded = false
-                    },
-                    containerColor = if (isPaused) Color(0xFFD32F2F) else Color.White,
-                    contentColor = if (isPaused) Color.White else Color.Black,
-                    shape = CircleShape,
-                    modifier = Modifier.size(100.dp).border(4.dp, if (isPaused) Color.Red else Color.Black, CircleShape)
-                ) {
-                    Row(
-                        modifier = Modifier.size(34.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val barColor = if (isPaused) Color.White else Color.Black
-                        Box(modifier = Modifier.fillMaxHeight().weight(1f).background(barColor))
-                        Box(modifier = Modifier.fillMaxHeight().weight(1f).background(barColor))
-                    }
-                }
-
-                // Item 1: Ustawienia Roadbooka
-                FloatingActionButton(
-                    onClick = {
-                        onSettingsClick()
-                        isExpanded = false
-                    },
-                    containerColor = Color.White,
-                    contentColor = Color.Black,
-                    shape = CircleShape,
-                    modifier = Modifier.size(100.dp).border(4.dp, Color.Black, CircleShape)
-                ) {
-                    Text("⚙", fontSize = 54.sp, fontWeight = FontWeight.Bold)
-                }
+                val barColor = if (isPaused) Color.White else Color.Black
+                Box(modifier = Modifier.fillMaxHeight().weight(1f).background(barColor))
+                Box(modifier = Modifier.fillMaxHeight().weight(1f).background(barColor))
             }
         }
 
-        // POPRAWKA: Przycisk hamburgera wyłącznie steruje stanem otwarcia (isExpanded) i nie dotyka Boot Loadera
+        // Przycisk 3: Ustawienia Roadbooka
         FloatingActionButton(
-            onClick = { isExpanded = !isExpanded },
-            containerColor = Color.Black,
-            contentColor = Color.White,
+            onClick = { onSettingsClick() },
+            containerColor = Color.White,
+            contentColor = Color.Black,
             shape = CircleShape,
-            modifier = Modifier.size(100.dp).border(4.dp, Color.White, CircleShape)
+            modifier = Modifier.size(100.dp).border(4.dp, Color.Black, CircleShape)
         ) {
-            Text("☰", fontSize = 54.sp, color = Color.White)
+            Text("⚙", fontSize = 54.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

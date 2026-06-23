@@ -1,5 +1,9 @@
 package com.example.roadbook.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,16 +24,37 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(
+        navController = navController,
+        startDestination = "home",
+        // --- GLOBALNE ANIMACJE: Domyślny ruch z prawej do lewej dla całej aplikacji ---
+        enterTransition = {
+            slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(400))
+        },
+        exitTransition = {
+            slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(400))
+        },
+        popEnterTransition = {
+            slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(400))
+        },
+        popExitTransition = {
+            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(400))
+        }
+    ) {
 
         // --- 1. EKRAN GŁÓWNY (HOME) ---
-        composable("home") {
+        composable(
+            route = "home",
+            // NADPISANIE: Ekran główny pojawia się płynnie (Fade), ignorując globalny slajd
+            enterTransition = {
+                fadeIn(animationSpec = tween(800))
+            }
+        ) {
             HomeScreen(
                 viewModel = viewModel,
                 onNavigateToRoadbook = {
                     navController.navigate("stage_selection")
                 },
-                // USUNIĘTO onNavigateToSettings - HomeScreen obsługuje to teraz sam!
                 onExit = onExitApp
             )
         }
